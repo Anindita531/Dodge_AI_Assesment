@@ -1,7 +1,7 @@
 from groq import Groq
 
-client = Groq(api_key="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")
-
+import os
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # Allowed schema
 TABLES = {
     "invoices": ["invoice_id", "customer_id", "amount"],
