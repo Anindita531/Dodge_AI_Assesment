@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Graph Query System</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            padding: 20px;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        #chat {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            height: 400px;
+            overflow-y: auto;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .msg {
+            margin-bottom: 15px;
+        }
+
+        .user {
+            color: blue;
+        }
+
+        .bot {
+            color: green;
+        }
+
+        #inputArea {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+        }
+
+        th {
+            background: #eee;
+        }
+
+        pre {
+            background: #222;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>📊 Business Graph Query System</h2>
+
+<div id="chat"></div>
+
+<div id="inputArea">
+    <input id="query" placeholder="Ask something like: highest billing products..." />
+    <button onclick="sendQuery()">Send</button>
+</div>
+
+<script>
+async function sendQuery() {
+
+    const input = document.getElementById("query");
+    const chat = document.getElementById("chat");
+
+    const userQuery = input.value.trim();
+    if (!userQuery) return;
+
+    // Show user message
+    chat.innerHTML += `<div class="msg user"><b>You:</b> ${userQuery}</div>`;
+
+    input.value = "";
+
+    try {
+        const res = await fetch("http://127.0.0.1:8000/query", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ user_query: userQuery })
+        });
+
+        const data = await res.json();
+
+        // Error handling
+        if (data.error) {
+            chat.innerHTML += `<div class="msg bot"><b>Error:</b> ${data.error}</div>`;
+            return;
+        }
+
+        // Summary
+        if (data.summary) {
+            chat.innerHTML += `<div class="msg bot"><b>Answer:</b> ${data.summary}</div>`;
+        }
+
+        // SQL
+        chat.innerHTML += `<div class="msg bot"><b>SQL:</b><pre>${data.sql}</pre></div>`;
+
+        // Table rendering
+        if (data.data && data.data.length > 0) {
+            let table = "<table><tr>";
+
+            // headers
+            Object.keys(data.data[0]).forEach(key => {
+                table += `<th>${key}</th>`;
+            });
+
+            table += "</tr>";
+
+            // rows
+            data.data.forEach(row => {
+                table += "<tr>";
+                Object.values(row).forEach(val => {
+                    table += `<td>${val}</td>`;
+                });
+                table += "</tr>";
+            });
+
+            table += "</table>";
+
+            chat.innerHTML += `<div class="msg bot">${table}</div>`;
+        } else {
+            chat.innerHTML += `<div class="msg bot">No data found.</div>`;
+        }
+
+    } catch (err) {
+        chat.innerHTML += `<div class="msg bot"><b>Error:</b> Server not reachable</div>`;
+    }
+
+    // Auto scroll
+    chat.scrollTop = chat.scrollHeight;
+}
+</script>
+
+</body>
+</html>
