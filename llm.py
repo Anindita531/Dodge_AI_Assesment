@@ -1,70 +1,67 @@
 from groq import Groq
 
-import os
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-# Allowed schema
-TABLES = {
-    "invoices": ["invoice_id", "customer_id", "amount"],
-    "invoice_items": ["invoice_id", "product_id", "netAmount", "billingQuantity"],
-    "deliveries": ["delivery_id"],
-    "payments": ["invoice_id", "amount"]
-}
+# 🔑 PUT YOUR API KEY HERE
+client = Groq(api_key="GROQ_API_KEY")
 
-# Allowed SQL keywords for safety
-BLOCKED_KEYWORDS = ["drop", "delete", "truncate", "alter", "insert", "update", "merge", "exec", "call", ";"]
-
-def is_valid_query(query: str) -> bool:
-    """Check query safety: no blocked keywords and only allowed tables."""
-    q_lower = query.lower()
-    
-    # Block dangerous keywords
-    if any(word in q_lower for word in BLOCKED_KEYWORDS):
-        return False
-
-    # Block references to tables not in schema
-    for word in q_lower.split():
-        if word.isidentifier() and word not in TABLES.keys() and word not in ["select", "from", "join", "on", "where", "group", "by", "having", "order", "desc", "asc", "as", "and", "or", "sum", "max", "min", "count"]:
-            return False
-
-    return True
 
 def generate_sql(user_query: str) -> str:
-    """Generate safe SQL using Groq LLM with explicit schema and guardrails."""
+    print("Calling LLM...")
+
     prompt = f"""
 You are a SQL expert.
 
-Only use these tables and columns:
-{chr(10).join(f"- {table}: {', '.join(cols)}" for table, cols in TABLES.items())}
+Use ONLY these tables and columns:
+
+Table: invoices
+- invoice_id
+- customer_id
+- amount
+
+Table: invoice_items
+- invoice_id
+- product_id
+- netAmount
+- billingQuantity
+
+Table: deliveries
+- delivery_id
+
+Table: payments
+- invoice_id
+- amount
 
 Rules:
 - Only generate SELECT queries
-- Use proper JOINs when necessary
-- Return ONLY one valid SQL statement
-- Do NOT reference any table or column not listed above
-- Do NOT include any text explanation
+- product_id exists ONLY in invoice_items
+- Do NOT assume columns not listed
+- Use JOIN properly
+- Return ONLY SQL
 
 User Query: {user_query}
 """
+
     try:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            timeout=10
+            timeout=10  # 🔥 prevents infinite loading
         )
 
-        sql = response.choices[0].message.content.strip()
+        print("LLM response received")
 
-        # Extract only the first SELECT statement
-        if "select" in sql.lower():
-            sql = sql[sql.lower().index("select"):].split("\n")[0]
-        else:
-            raise ValueError("LLM did not return a SELECT statement")
-
-        if not is_valid_query(sql):
-            raise ValueError("Generated query is unsafe or references invalid tables/columns")
-
-        return sql
+        return response.choices[0].message.content.strip()
 
     except Exception as e:
         print("LLM ERROR:", e)
         raise e
+
+
+# ✅ Guardrails
+def is_valid_query(query: str) -> bool:
+    query = query.lower()
+
+    blocked = ["drop", "delete", "truncate", "alter", "insert"]
+    if any(word in query for word in blocked):
+        return False
+
+    return True
